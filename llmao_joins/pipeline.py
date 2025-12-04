@@ -92,13 +92,6 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     # ---------------------------------------------------------
     # STEP 4 — LLM GATE FOR UNCERTAIN MATCHES
     # ---------------------------------------------------------
-    # If teammates should implement LLM validation, comment this out:
-    #if llm_api_key is not None:
-        # Todo
-    #else:
-        # LLM gate skipped
-        #t6 = t5
-        # Todo
     # NOTE: defining t6 so the later timing logic works.
     t6 = t5
     # ---------------------------------------------------------
