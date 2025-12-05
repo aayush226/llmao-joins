@@ -93,7 +93,16 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     # STEP 4 — LLM GATE FOR UNCERTAIN MATCHES
     # ---------------------------------------------------------
     # NOTE: defining t6 so the later timing logic works.
-    t6 = t5
+    t6 = time.perf_counter()
+    llm_stats = run_llm_gate(pairs, cfg, api_key=llm_api_key)
+    t7 = time.perf_counter()
+    metrics["time_llm_gate_sec"] = t7 - t6
+    metrics["llm_n_calls"] = llm_stats.n_calls
+    metrics["llm_total_tokens"] = llm_stats.total_tokens
+    metrics["llm_estimated_cost_usd"] = llm_stats.estimated_cost(cfg.llm_price_per_1k_tokens)
+
+    # Re-score all pairs after injecting llm_score
+    score_all(pairs, cfg)
     # ---------------------------------------------------------
     # STEP 5 — ACCEPT HIGH CONFIDENCE MATCHES
     # ---------------------------------------------------------
@@ -206,6 +215,9 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
 
     print(f"[LLMAO-JOINS] Finished pipeline. Outputs written to {cfg.output_dir}")
     print(f"[LLMAO-JOINS] Matched pairs: {len(accepted_pairs)}, joined rows: {len(joined)}")
+    
+    if llm_stats.n_calls > 0:
+        print(f"[LLM GATE] LLM calls: {llm_stats.n_calls}, Tokens: {llm_stats.total_tokens}, Estimated cost: ${llm_stats.estimated_cost(cfg.llm_price_per_1k_tokens):.4f}")
 
 
 def main():
