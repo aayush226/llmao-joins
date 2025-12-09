@@ -87,7 +87,7 @@ class Neo4jGraph:
             return
 
         with self.driver.session() as session:
-            session.write_transaction(self._upsert_pair_tx, pair)
+            session.execute_write(self._upsert_pair_tx, pair)
 
     @staticmethod
     def _upsert_pair_tx(tx, pair: CandidatePair):
