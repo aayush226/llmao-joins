@@ -48,5 +48,6 @@ class PipelineConfig:
     neo4j_password: str = os.getenv("NEO4J_PASSWORD")
 
     # LLM cost (for logging only)
+    llm_api_key: Optional[str] = os.getenv("LLM_API_KEY")
     llm_model: str = "gpt-4o-mini"
     llm_price_per_1k_tokens: float = 0.15

@@ -5,7 +5,8 @@ from typing import Dict, List, Optional, Tuple
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
-from .io_and_normalization import ValueRecord, canonical_form
+from .io_and_normalization import ValueRecord
+from rapidfuzz import fuzz
 from sentence_transformers import SentenceTransformer, util
 import numpy as np
 
@@ -45,6 +46,7 @@ def generate_rule_pairs(
     left_values: List[ValueRecord],
     right_values: List[ValueRecord],
     pairs: Optional[Dict[Tuple[str, str], CandidatePair]] = None,
+    threshold: int = 75,  # can change
 ) -> Dict[Tuple[str, str], CandidatePair]:
     """
     Step 2a: High-precision rule-based candidates.
@@ -56,10 +58,9 @@ def generate_rule_pairs(
         pairs = {}
 
     for l in left_values:
-        l_canon = canonical_form(l.norm)
         for r in right_values:
-            r_canon = canonical_form(r.norm)
-            if l_canon and l_canon == r_canon:
+            score = fuzz.token_sort_ratio(l.norm, r.norm)
+            if score >= threshold:
                 pair = _get_or_create(pairs, l, r)
                 pair.rule_score = 1.0
                 pair.sources.append("rule")

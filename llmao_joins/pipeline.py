@@ -21,6 +21,8 @@ from .candidate_generation import (
 from .scoring_and_llm import score_all, run_llm_gate
 from .graph_and_clusters import build_graph_and_clusters
 
+from dotenv import load_dotenv
+load_dotenv()
 
 def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     os.makedirs(cfg.output_dir, exist_ok=True)
@@ -241,11 +243,12 @@ def main():
         neo4j_uri=args.neo4j_uri or os.getenv("NEO4J_URI"),
         neo4j_user=args.neo4j_user or os.getenv("NEO4J_USER"),
         neo4j_password=args.neo4j_password or os.getenv("NEO4J_PASSWORD"),
+        llm_api_key=args.llm_api_key or os.getenv("LLM_API_KEY"),
         embed_model_name=args.embed_model_name,
         abbrevation_master= args.abbrevation_master or None
     )
 
-    run_pipeline(cfg, llm_api_key=args.llm_api_key)
+    run_pipeline(cfg, llm_api_key=cfg.llm_api_key)
 
 
 if __name__ == "__main__":
