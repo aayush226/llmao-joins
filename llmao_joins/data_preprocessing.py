@@ -6,10 +6,11 @@ import pandas as pd
 import numpy as np
 from difflib import SequenceMatcher
 import Levenshtein
-from config import PipelineConfig
+from .config import PipelineConfig
 
 
 class DataNormalizer:
+    ABBREVIATIONS = []
     def __init__(self, custom_abbreviations: Optional[Dict[str, str]] = None):
         """
         Initialize normalizer with optional custom abbreviations

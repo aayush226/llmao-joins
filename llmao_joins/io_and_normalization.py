@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 import pandas as pd
-import data_preprocessing
+from . import data_preprocessing
 
 _WHITESPACE_RE = re.compile(r"\s+")
 
@@ -28,7 +28,9 @@ class ValueRecord:
     side: str  # 'left' or 'right'
 
 def normalize_text(value: str) -> str:
-    text = data_preprocessing.DataNormalizer.normalize(value)
+    # text = data_preprocessing.DataNormalizer.normalize(value)
+    normalizer = data_preprocessing.DataNormalizer()
+    text = normalizer.normalize(value)
     return text
 
 def canonical_form(norm: str) -> str:
