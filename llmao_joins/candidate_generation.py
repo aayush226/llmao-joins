@@ -96,7 +96,7 @@ def generate_string_candidates(
     if n_neighbors == 0:
         return pairs  # nothing to match against
 
-    nn = NearestNeighbors(n_neighbors=top_k, metric="cosine")
+    nn = NearestNeighbors(n_neighbors=n_neighbors, metric="cosine")
     nn.fit(right_vecs)
     distances, indices = nn.kneighbors(left_vecs, return_distance=True)
 
@@ -138,8 +138,13 @@ def generate_embedding_candidates(
 
     sim_matrix = util.cos_sim(left_embeds, right_embeds).cpu().numpy()
 
+    top_k = min(top_k, len(right_values)) 
     for i, row in enumerate(sim_matrix):
-        top_indices = np.argpartition(-row, top_k)[:top_k]
+        safe_k = min(top_k, len(row))
+        if safe_k == 0:
+            continue  # Skip if no candidates
+        safe_k = min(safe_k, len(row) - 1)  # Avoid out-of-bounds
+        top_indices = np.argpartition(-row, safe_k)[:safe_k]
         for j in top_indices:
             sim = row[j]
             if sim >= min_sim:
