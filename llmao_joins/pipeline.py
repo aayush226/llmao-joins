@@ -114,8 +114,7 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
 
     # ---------------------------------------------------------
     # STEP 6 — BUILD GRAPH IN NEO4J + EXTRACT CLUSTERS
-    # ---------------------------------------------------------
-    # TODO: by aayush - need more on this
+    # ---------------------------------------------------------    
     graph_stats = build_graph_and_clusters(pairs, cfg)
     t7 = time.perf_counter()
     metrics["time_graph_and_clusters_sec"] = t7 - t6
@@ -123,15 +122,8 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     metrics["graph_n_edges"] = graph_stats.n_edges
     metrics["graph_n_clusters"] = graph_stats.n_clusters
 
-    # Local Python only synonym graph (this is a backup)
-    G = nx.Graph()
-    for p in accepted_pairs:
-        G.add_edge(p.left_norm, p.right_norm)
-
-    cluster_map: Dict[str, int] = {}
-    for cluster_id, comp in enumerate(nx.connected_components(G), start=1):
-        for v in comp:
-            cluster_map[v] = cluster_id
+    # Use the cluster_map produced from the Neo4j backed graph
+    cluster_map: Dict[str, int] = graph_stats.cluster_map
 
     # ---------------------------------------------------------
     # STEP 7 — MATERIALIZE THE FINAL SEMANTIC JOIN
