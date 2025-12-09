@@ -630,116 +630,116 @@ class HybridValueMatcher:
 #     print("\nHybrid Results:")
 #     for method, result in results.items():
 #         print(f"  {method}: {result}")
-if __name__ == "__main__":
-    import argparse
-    import sys
+# if __name__ == "__main__":
+#     import argparse
+#     import sys
 
-    # -------------------------
-    # Parse CLI arguments
-    # -------------------------
-    parser = argparse.ArgumentParser(description="Hybrid value matcher")
+#     # -------------------------
+#     # Parse CLI arguments
+#     # -------------------------
+#     parser = argparse.ArgumentParser(description="Hybrid value matcher")
 
-    parser.add_argument("--left", required=True, help="Path to left CSV file")
-    parser.add_argument("--right", required=True, help="Path to right CSV file")
-    parser.add_argument("--left_col", required=True, help="Column name in left CSV")
-    parser.add_argument("--right_col", required=True, help="Column name in right CSV")
+#     parser.add_argument("--left", required=True, help="Path to left CSV file")
+#     parser.add_argument("--right", required=True, help="Path to right CSV file")
+#     parser.add_argument("--left_col", required=True, help="Column name in left CSV")
+#     parser.add_argument("--right_col", required=True, help="Column name in right CSV")
 
-    args = parser.parse_args()
+#     args = parser.parse_args()
 
-    # -------------------------
-    # Load CSVs
-    # -------------------------
-    left_df = pd.read_csv(args.left)
-    right_df = pd.read_csv(args.right)
+#     # -------------------------
+#     # Load CSVs
+#     # -------------------------
+#     left_df = pd.read_csv(args.left)
+#     right_df = pd.read_csv(args.right)
 
-    if args.left_col not in left_df.columns:
-        print(f"Column {args.left_col} not found in left CSV.")
-        sys.exit(1)
+#     if args.left_col not in left_df.columns:
+#         print(f"Column {args.left_col} not found in left CSV.")
+#         sys.exit(1)
 
-    if args.right_col not in right_df.columns:
-        print(f"Column {args.right_col} not found in right CSV.")
-        sys.exit(1)
+#     if args.right_col not in right_df.columns:
+#         print(f"Column {args.right_col} not found in right CSV.")
+#         sys.exit(1)
 
-    col_left = left_df[args.left_col].astype(str)
-    col_right = right_df[args.right_col].astype(str)
+#     col_left = left_df[args.left_col].astype(str)
+#     col_right = right_df[args.right_col].astype(str)
 
-    # -------------------------
-    # Initialize matcher
-    # -------------------------
-    hybrid = HybridValueMatcher()
+#     # -------------------------
+#     # Initialize matcher
+#     # -------------------------
+#     hybrid = HybridValueMatcher()
 
-    # -------------------------
-    # Run hybrid matching
-    # -------------------------
-    results = hybrid.find_matches(col_left, col_right)
+#     # -------------------------
+#     # Run hybrid matching
+#     # -------------------------
+#     results = hybrid.find_matches(col_left, col_right)
 
-    # -------------------------
-    # Prepare output file
-    # -------------------------
-    with open("output.txt", "w", encoding="utf-8") as f:
+#     # -------------------------
+#     # Prepare output file
+#     # -------------------------
+#     with open("output.txt", "w", encoding="utf-8") as f:
 
-        f.write("=== HYBRID VALUE MATCHING REPORT ===\n\n")
-        f.write(f"Left CSV: {args.left}\n")
-        f.write(f"Right CSV: {args.right}\n")
-        f.write(f"Column Left: {args.left_col}\n")
-        f.write(f"Column Right: {args.right_col}\n\n")
+#         f.write("=== HYBRID VALUE MATCHING REPORT ===\n\n")
+#         f.write(f"Left CSV: {args.left}\n")
+#         f.write(f"Right CSV: {args.right}\n")
+#         f.write(f"Column Left: {args.left_col}\n")
+#         f.write(f"Column Right: {args.right_col}\n\n")
 
-        # ----------------------------------------------------
-        # 1. TRANSFORMATION-BASED MATCHING RESULTS
-        # ----------------------------------------------------
-        f.write("=== Transformation-Based Matching ===\n")
+#         # ----------------------------------------------------
+#         # 1. TRANSFORMATION-BASED MATCHING RESULTS
+#         # ----------------------------------------------------
+#         f.write("=== Transformation-Based Matching ===\n")
 
-        trans_result = results.get("transformation", {})
+#         trans_result = results.get("transformation", {})
 
-        if trans_result.get("found"):
-            f.write("Transformation chain found: " +
-                    " -> ".join(trans_result["chain"]) + "\n")
-            f.write(f"Matches found: {len(trans_result['matches'])}\n\n")
+#         if trans_result.get("found"):
+#             f.write("Transformation chain found: " +
+#                     " -> ".join(trans_result["chain"]) + "\n")
+#             f.write(f"Matches found: {len(trans_result['matches'])}\n\n")
 
-            for v1, v2 in trans_result["matches"][:20]:
-                f.write(f"  {v1} -> {v2}\n")
+#             for v1, v2 in trans_result["matches"][:20]:
+#                 f.write(f"  {v1} -> {v2}\n")
 
-        else:
-            f.write("No valid transformation chain discovered.\n\n")
+#         else:
+#             f.write("No valid transformation chain discovered.\n\n")
 
-        # ----------------------------------------------------
-        # 2. MULTI-CONFIGURATION MATCHING
-        # ----------------------------------------------------
-        # f.write("\n=== Multi-Configuration Fuzzy Matching ===\n")
+#         # ----------------------------------------------------
+#         # 2. MULTI-CONFIGURATION MATCHING
+#         # ----------------------------------------------------
+#         # f.write("\n=== Multi-Configuration Fuzzy Matching ===\n")
 
-        # mc_result = results.get("multi_config", {})
+#         # mc_result = results.get("multi_config", {})
 
-        # if mc_result:
-        #     f.write(f"Best Config: {mc_result.get('best_config')}\n")
-        #     f.write(f"Number of Matches: {mc_result.get('num_matches')}\n\n")
+#         # if mc_result:
+#         #     f.write(f"Best Config: {mc_result.get('best_config')}\n")
+#         #     f.write(f"Number of Matches: {mc_result.get('num_matches')}\n\n")
 
-        #     for v1, v2, score in mc_result.get("matches", [])[:20]:
-        #         f.write(f"  {v1} <-> {v2} (score={score:.3f})\n")
+#         #     for v1, v2, score in mc_result.get("matches", [])[:20]:
+#         #         f.write(f"  {v1} <-> {v2} (score={score:.3f})\n")
 
-        # else:
-        #     f.write("No multi-configuration match results.\n\n")
-        # 2. MULTI-CONFIGURATION MATCHING (ALL CONFIGS)
-        f.write("\n=== Multi-Configuration Fuzzy Matching (All Configurations) ===\n")
+#         # else:
+#         #     f.write("No multi-configuration match results.\n\n")
+#         # 2. MULTI-CONFIGURATION MATCHING (ALL CONFIGS)
+#         f.write("\n=== Multi-Configuration Fuzzy Matching (All Configurations) ===\n")
 
-        mc_results = results.get("multi_config", [])
+#         mc_results = results.get("multi_config", [])
 
-        if not mc_results:
-            f.write("No multi-configuration match results.\n")
-        else:
-            for cfg in mc_results:
-                f.write(f"\n--- Configuration: {cfg['config_name']} ---\n")
-                f.write(f"Threshold: {cfg['threshold']}\n")
-                f.write(f"Matches Found: {cfg['num_matches']}\n\n")
+#         if not mc_results:
+#             f.write("No multi-configuration match results.\n")
+#         else:
+#             for cfg in mc_results:
+#                 f.write(f"\n--- Configuration: {cfg['config_name']} ---\n")
+#                 f.write(f"Threshold: {cfg['threshold']}\n")
+#                 f.write(f"Matches Found: {cfg['num_matches']}\n\n")
 
-                for v1, v2, score in cfg['matches']:
-                    f.write(f"  {v1} <-> {v2} (score={score:.3f})\n")
+#                 for v1, v2, score in cfg['matches']:
+#                     f.write(f"  {v1} <-> {v2} (score={score:.3f})\n")
 
-        # ----------------------------------------------------
-        # 3. DISTRIBUTION-BASED MATCHING
-        # ----------------------------------------------------
-        f.write("\n=== Distribution-Based Matching ===\n")
+#         # ----------------------------------------------------
+#         # 3. DISTRIBUTION-BASED MATCHING
+#         # ----------------------------------------------------
+#         f.write("\n=== Distribution-Based Matching ===\n")
 
-        dist_result = results.get("distribution", {})
-        f.write(f"Columns similar by distribution: {dist_result.get('similar')}\n")
+#         dist_result = results.get("distribution", {})
+#         f.write(f"Columns similar by distribution: {dist_result.get('similar')}\n")
 
-    print("\nResults written to output.txt")
+#     print("\nResults written to output.txt")

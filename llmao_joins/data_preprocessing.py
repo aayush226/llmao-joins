@@ -589,124 +589,124 @@ class PairStatistics:
             'low_confidence': low_confidence
         }
     
-def write_line(f, line: str = ""):
-    f.write(line + "\n")
+# def write_line(f, line: str = ""):
+#     f.write(line + "\n")
 
-# Example usage and testing
-if __name__ == "__main__":
-    # Example data
-    df1 = pd.read_csv("C:/Users/Bineet/Downloads/left.csv", dtype=str)
-    col_name1 = df1.columns[1]
-    df2 = pd.read_csv("C:/Users/Bineet/Downloads/right.csv", dtype=str)
-    col_name2 = df2.columns[1]
-    # if df.shape[1] != 1:
-    #     raise ValueError(f"CSV at {path} should have exactly one column")
-    # return df.iloc[:,0].astype(str).tolist()
-    # values1 = [
-    #     "USA",
-    #     "The Netherlands",
-    #     "U.K.",
-    #     "South Korea",
-    #     "UAE"
-    # ]
-    values1 = df1[col_name1].fillna('').astype(str).tolist()
-    values2 = df2[col_name2].fillna('').astype(str).tolist()
-    # values2 = [
-    #     "United States of America",
-    #     "Netherlands",
-    #     "United Kingdom",
-    #     "Republic of Korea",
-    #     "United Arab Emirates"
-    # ]
+# # Example usage and testing
+# if __name__ == "__main__":
+#     # Example data
+#     df1 = pd.read_csv("C:/Users/Bineet/Downloads/left.csv", dtype=str)
+#     col_name1 = df1.columns[1]
+#     df2 = pd.read_csv("C:/Users/Bineet/Downloads/right.csv", dtype=str)
+#     col_name2 = df2.columns[1]
+#     # if df.shape[1] != 1:
+#     #     raise ValueError(f"CSV at {path} should have exactly one column")
+#     # return df.iloc[:,0].astype(str).tolist()
+#     # values1 = [
+#     #     "USA",
+#     #     "The Netherlands",
+#     #     "U.K.",
+#     #     "South Korea",
+#     #     "UAE"
+#     # ]
+#     values1 = df1[col_name1].fillna('').astype(str).tolist()
+#     values2 = df2[col_name2].fillna('').astype(str).tolist()
+#     # values2 = [
+#     #     "United States of America",
+#     #     "Netherlands",
+#     #     "United Kingdom",
+#     #     "Republic of Korea",
+#     #     "United Arab Emirates"
+#     # ]
     
-    # Step 1: Normalize
-    print("=== Step 1: Normalization ===")
-    normalizer = DataNormalizer()
+#     # Step 1: Normalize
+#     print("=== Step 1: Normalization ===")
+#     normalizer = DataNormalizer()
     
-    norm_values1 = [normalizer.normalize(v) for v in values1]
-    norm_values2 = [normalizer.normalize(v) for v in values2]
-    output_file = "output.txt"
-    # optional: if you want a separate directory
-    # os.makedirs("output", exist_ok=True)
-    # output_file = os.path.join("output", "results.txt")
+#     norm_values1 = [normalizer.normalize(v) for v in values1]
+#     norm_values2 = [normalizer.normalize(v) for v in values2]
+#     output_file = "output.txt"
+#     # optional: if you want a separate directory
+#     # os.makedirs("output", exist_ok=True)
+#     # output_file = os.path.join("output", "results.txt")
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        write_line(f, "=== Transformation Discovery ===")
+#     with open(output_file, "w", encoding="utf-8") as f:
+#         write_line(f, "=== Transformation Discovery ===")
         
-        # Suppose trans_chain is determined earlier
-        # if trans_chain:
-        #     write_line(f, f"Transformation chain: {trans_chain}")
-        # else:
-        #     write_line(f, "Transformation chain: None")
+#         # Suppose trans_chain is determined earlier
+#         # if trans_chain:
+#         #     write_line(f, f"Transformation chain: {trans_chain}")
+#         # else:
+#         #     write_line(f, "Transformation chain: None")
 
-        write_line(f, "")
-        write_line(f, "Original -> Normalized:")
-        for orig, norm in zip(values1, norm_values1):
-            write_line(f, f"  {orig:30} -> {norm}")
+#         write_line(f, "")
+#         write_line(f, "Original -> Normalized:")
+#         for orig, norm in zip(values1, norm_values1):
+#             write_line(f, f"  {orig:30} -> {norm}")
 
-        write_line(f, "")
-        write_line(f, "=== Step 2: Candidate Generation ===")
-        generator = CandidatePairGenerator(min_similarity=0.5)
-        candidates = generator.generate_candidates_with_blocking(norm_values1, norm_values2)
+#         write_line(f, "")
+#         write_line(f, "=== Step 2: Candidate Generation ===")
+#         generator = CandidatePairGenerator(min_similarity=0.5)
+#         candidates = generator.generate_candidates_with_blocking(norm_values1, norm_values2)
 
-        write_line(f, f"\nFound {len(candidates)} candidate pairs:")
-        for v1, v2, score in sorted(candidates, key=lambda x: x[2], reverse=True):
-            write_line(f, f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
+#         write_line(f, f"\nFound {len(candidates)} candidate pairs:")
+#         for v1, v2, score in sorted(candidates, key=lambda x: x[2], reverse=True):
+#             write_line(f, f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
 
-        write_line(f, "")
-        write_line(f, "=== Step 3: Statistics ===")
-        stats = PairStatistics.calculate_statistics(candidates)
+#         write_line(f, "")
+#         write_line(f, "=== Step 3: Statistics ===")
+#         stats = PairStatistics.calculate_statistics(candidates)
 
-        write_line(f, "\nCandidate Statistics:")
-        for key, value in stats.items():
-            if isinstance(value, float):
-                write_line(f, f"  {key:20}: {value:.3f}")
-            else:
-                write_line(f, f"  {key:20}: {value}")
+#         write_line(f, "\nCandidate Statistics:")
+#         for key, value in stats.items():
+#             if isinstance(value, float):
+#                 write_line(f, f"  {key:20}: {value:.3f}")
+#             else:
+#                 write_line(f, f"  {key:20}: {value}")
 
-        write_line(f, "")
-        write_line(f, "=== Step 4: Confidence Filtering ===")
-        filtered = PairStatistics.filter_by_confidence(candidates)
+#         write_line(f, "")
+#         write_line(f, "=== Step 4: Confidence Filtering ===")
+#         filtered = PairStatistics.filter_by_confidence(candidates)
 
-        write_line(f, f"\nHigh confidence ({len(filtered['high_confidence'])} pairs):")
-        for v1, v2, score in filtered['high_confidence']:
-            write_line(f, f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
+#         write_line(f, f"\nHigh confidence ({len(filtered['high_confidence'])} pairs):")
+#         for v1, v2, score in filtered['high_confidence']:
+#             write_line(f, f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
 
-        write_line(f, "")
-        write_line(f, f"\nUncertain ({len(filtered['uncertain'])} pairs) - these would go to LLM:")
-        for v1, v2, score in filtered['uncertain']:
-            write_line(f, f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
+#         write_line(f, "")
+#         write_line(f, f"\nUncertain ({len(filtered['uncertain'])} pairs) - these would go to LLM:")
+#         for v1, v2, score in filtered['uncertain']:
+#             write_line(f, f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
 
-    print(f"Results written to {output_file}")
-    # print("\nOriginal -> Normalized:")
-    # for orig, norm in zip(values1, norm_values1):
-    #     print(f"  {orig:30} -> {norm}")
+#     print(f"Results written to {output_file}")
+#     # print("\nOriginal -> Normalized:")
+#     # for orig, norm in zip(values1, norm_values1):
+#     #     print(f"  {orig:30} -> {norm}")
     
-    # # Step 2: Generate candidates
-    # print("\n=== Step 2: Candidate Generation ===")
-    # generator = CandidatePairGenerator(min_similarity=0.5)
+#     # # Step 2: Generate candidates
+#     # print("\n=== Step 2: Candidate Generation ===")
+#     # generator = CandidatePairGenerator(min_similarity=0.5)
     
-    # candidates = generator.generate_candidates_with_blocking(norm_values1, norm_values2)
+#     # candidates = generator.generate_candidates_with_blocking(norm_values1, norm_values2)
     
-    # print(f"\nFound {len(candidates)} candidate pairs:")
-    # for v1, v2, score in sorted(candidates, key=lambda x: x[2], reverse=True):
-    #     print(f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
+#     # print(f"\nFound {len(candidates)} candidate pairs:")
+#     # for v1, v2, score in sorted(candidates, key=lambda x: x[2], reverse=True):
+#     #     print(f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
     
-    # # Step 3: Statistics
-    # print("\n=== Step 3: Statistics ===")
-    # stats = PairStatistics.calculate_statistics(candidates)
-    # print(f"\nCandidate Statistics:")
-    # for key, value in stats.items():
-    #     print(f"  {key:20}: {value:.3f}" if isinstance(value, float) else f"  {key:20}: {value}")
+#     # # Step 3: Statistics
+#     # print("\n=== Step 3: Statistics ===")
+#     # stats = PairStatistics.calculate_statistics(candidates)
+#     # print(f"\nCandidate Statistics:")
+#     # for key, value in stats.items():
+#     #     print(f"  {key:20}: {value:.3f}" if isinstance(value, float) else f"  {key:20}: {value}")
     
-    # # Step 4: Filter by confidence
-    # print("\n=== Step 4: Confidence Filtering ===")
-    # filtered = PairStatistics.filter_by_confidence(candidates)
+#     # # Step 4: Filter by confidence
+#     # print("\n=== Step 4: Confidence Filtering ===")
+#     # filtered = PairStatistics.filter_by_confidence(candidates)
     
-    # print(f"\nHigh confidence ({len(filtered['high_confidence'])} pairs):")
-    # for v1, v2, score in filtered['high_confidence']:
-    #     print(f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
+#     # print(f"\nHigh confidence ({len(filtered['high_confidence'])} pairs):")
+#     # for v1, v2, score in filtered['high_confidence']:
+#     #     print(f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
     
-    # print(f"\nUncertain ({len(filtered['uncertain'])} pairs) - these would go to LLM:")
-    # for v1, v2, score in filtered['uncertain']:
-    #     print(f"  {v1:30} <-> {v2:30} (score: {score:.3f})")
+#     # print(f"\nUncertain ({len(filtered['uncertain'])} pairs) - these would go to LLM:")
+#     # for v1, v2, score in filtered['uncertain']:
+#     #     print(f"  {v1:30} <-> {v2:30} (score: {score:.3f})")

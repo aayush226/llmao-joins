@@ -34,7 +34,7 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     right_records, right_df = load_column_values(cfg.right_csv, cfg.right_col, side="right")
     metrics["n_left_unique_values"] = len(left_records)
     metrics["n_right_unique_values"] = len(right_records)
-
+    
     if len(left_records) > cfg.max_unique_values or len(right_records) > cfg.max_unique_values:
         raise RuntimeError(
             f"Too many unique values: left={len(left_records)}, right={len(right_records)}, "
