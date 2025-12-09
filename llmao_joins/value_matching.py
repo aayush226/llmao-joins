@@ -288,14 +288,14 @@ class MultiConfigurationMatcher:
         ))
         
         # Configuration 4: Initials matching
-        configs.append(JoinConfiguration(
-            name="initials",
-            preprocessing=['lowercase', 'initials'],
-            tokenization='chars',
-            token_weights='equal',
-            distance_function='levenshtein',
-            threshold=0.8
-        ))
+        # configs.append(JoinConfiguration(
+        #     name="initials",
+        #     preprocessing=['lowercase', 'initials'],
+        #     tokenization='chars',
+        #     token_weights='equal',
+        #     distance_function='levenshtein',
+        #     threshold=0.8
+        # ))
         
         # Configuration 5: Very fuzzy (low threshold)
         configs.append(JoinConfiguration(
@@ -533,16 +533,31 @@ class HybridValueMatcher:
                 results['transformation'] = {'found': False}
         
         # Method 2: Multi-configuration
+        # if 'multi_config' in methods:
+        #     configs_results = self.multi_config.find_optimal_configurations(values1, values2)
+            # if configs_results:
+            #     best_config, best_matches = configs_results[0]
+            #     results['multi_config'] = {
+            #         'best_config': best_config.name,
+            #         'num_matches': len(best_matches),
+            #         'matches': best_matches[:10]  # Top 10 for brevity
+            #     }
+            # Method 2: Multi-configuration
         if 'multi_config' in methods:
             configs_results = self.multi_config.find_optimal_configurations(values1, values2)
-            if configs_results:
-                best_config, best_matches = configs_results[0]
-                results['multi_config'] = {
-                    'best_config': best_config.name,
-                    'num_matches': len(best_matches),
-                    'matches': best_matches[:10]  # Top 10 for brevity
-                }
-        
+
+            # Store ALL configurations and their matches
+            all_configs_output = []
+            for config, matches in configs_results:
+                all_configs_output.append({
+                    'config_name': config.name,
+                    'threshold': config.threshold,
+                    'num_matches': len(matches),
+                    'matches': matches[:20]  # limit to top 20 for readability
+                })
+
+            results['multi_config'] = all_configs_output
+
         # Method 3: Distribution-based
         if 'distribution' in methods:
             similar = self.dist_matcher.are_columns_similar_by_distribution(col1, col2)
@@ -569,49 +584,162 @@ class HybridValueMatcher:
 
 
 # Example usage
+# if __name__ == "__main__":
+#     print("=== Transformation Discovery ===")
+    
+#     # Example 1: Abbreviation pattern
+#     source = ["United States of America", "United Kingdom", "United Arab Emirates"]
+#     target = ["USA", "UK", "UAE"]
+    
+#     trans_chain = ValueTransformation.discover_transformation(source, target)
+#     print(f"Transformation chain: {trans_chain}")
+    
+#     # Example 2: Multi-configuration matching
+#     print("\n=== Multi-Configuration Matching ===")
+    
+#     values1 = ["Manhattan", "Queens", "Brooklyn"]
+#     values2 = ["MANHATTAN", "QUEENS ", "Brklyn"]
+    
+#     matcher = MultiConfigurationMatcher(min_precision=0.5)
+#     configs = matcher.find_optimal_configurations(values1, values2)
+    
+#     for config, matches in configs[:3]:
+#         print(f"\nConfig: {config.name}")
+#         print(f"  Matches found: {len(matches)}")
+#         for v1, v2, score in matches[:3]:
+#             print(f"    {v1} <-> {v2} ({score:.3f})")
+    
+#     # Example 3: Distribution-based
+#     print("\n=== Distribution-Based Matching ===")
+    
+#     col1 = pd.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+#     col2 = pd.Series([1.1, 2.2, 3.1, 4.2, 5.0, 6.1, 7.2, 8.0, 9.1, 10.2])
+    
+#     similar = DistributionBasedMatching.are_columns_similar_by_distribution(col1, col2)
+#     print(f"Columns similar by distribution: {similar}")
+    
+#     # Example 4: Hybrid matching
+#     print("\n=== Hybrid Value Matching ===")
+    
+#     df1 = pd.DataFrame({'borough': ['Manhattan', 'Queens', 'Brooklyn']})
+#     df2 = pd.DataFrame({'boro': ['Manh', 'Que', 'Brkln']})
+    
+#     hybrid = HybridValueMatcher()
+#     results = hybrid.find_matches(df1['borough'], df2['boro'])
+    
+#     print("\nHybrid Results:")
+#     for method, result in results.items():
+#         print(f"  {method}: {result}")
 if __name__ == "__main__":
-    print("=== Transformation Discovery ===")
-    
-    # Example 1: Abbreviation pattern
-    source = ["United States of America", "United Kingdom", "United Arab Emirates"]
-    target = ["USA", "UK", "UAE"]
-    
-    trans_chain = ValueTransformation.discover_transformation(source, target)
-    print(f"Transformation chain: {trans_chain}")
-    
-    # Example 2: Multi-configuration matching
-    print("\n=== Multi-Configuration Matching ===")
-    
-    values1 = ["Manhattan", "Queens", "Brooklyn"]
-    values2 = ["MANHATTAN", "QUEENS ", "Brklyn"]
-    
-    matcher = MultiConfigurationMatcher(min_precision=0.5)
-    configs = matcher.find_optimal_configurations(values1, values2)
-    
-    for config, matches in configs[:3]:
-        print(f"\nConfig: {config.name}")
-        print(f"  Matches found: {len(matches)}")
-        for v1, v2, score in matches[:3]:
-            print(f"    {v1} <-> {v2} ({score:.3f})")
-    
-    # Example 3: Distribution-based
-    print("\n=== Distribution-Based Matching ===")
-    
-    col1 = pd.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    col2 = pd.Series([1.1, 2.2, 3.1, 4.2, 5.0, 6.1, 7.2, 8.0, 9.1, 10.2])
-    
-    similar = DistributionBasedMatching.are_columns_similar_by_distribution(col1, col2)
-    print(f"Columns similar by distribution: {similar}")
-    
-    # Example 4: Hybrid matching
-    print("\n=== Hybrid Value Matching ===")
-    
-    df1 = pd.DataFrame({'borough': ['Manhattan', 'Queens', 'Brooklyn']})
-    df2 = pd.DataFrame({'boro': ['Manh', 'Que', 'Brkln']})
-    
+    import argparse
+    import sys
+
+    # -------------------------
+    # Parse CLI arguments
+    # -------------------------
+    parser = argparse.ArgumentParser(description="Hybrid value matcher")
+
+    parser.add_argument("--left", required=True, help="Path to left CSV file")
+    parser.add_argument("--right", required=True, help="Path to right CSV file")
+    parser.add_argument("--left_col", required=True, help="Column name in left CSV")
+    parser.add_argument("--right_col", required=True, help="Column name in right CSV")
+
+    args = parser.parse_args()
+
+    # -------------------------
+    # Load CSVs
+    # -------------------------
+    left_df = pd.read_csv(args.left)
+    right_df = pd.read_csv(args.right)
+
+    if args.left_col not in left_df.columns:
+        print(f"Column {args.left_col} not found in left CSV.")
+        sys.exit(1)
+
+    if args.right_col not in right_df.columns:
+        print(f"Column {args.right_col} not found in right CSV.")
+        sys.exit(1)
+
+    col_left = left_df[args.left_col].astype(str)
+    col_right = right_df[args.right_col].astype(str)
+
+    # -------------------------
+    # Initialize matcher
+    # -------------------------
     hybrid = HybridValueMatcher()
-    results = hybrid.find_matches(df1['borough'], df2['boro'])
-    
-    print("\nHybrid Results:")
-    for method, result in results.items():
-        print(f"  {method}: {result}")
+
+    # -------------------------
+    # Run hybrid matching
+    # -------------------------
+    results = hybrid.find_matches(col_left, col_right)
+
+    # -------------------------
+    # Prepare output file
+    # -------------------------
+    with open("output.txt", "w", encoding="utf-8") as f:
+
+        f.write("=== HYBRID VALUE MATCHING REPORT ===\n\n")
+        f.write(f"Left CSV: {args.left}\n")
+        f.write(f"Right CSV: {args.right}\n")
+        f.write(f"Column Left: {args.left_col}\n")
+        f.write(f"Column Right: {args.right_col}\n\n")
+
+        # ----------------------------------------------------
+        # 1. TRANSFORMATION-BASED MATCHING RESULTS
+        # ----------------------------------------------------
+        f.write("=== Transformation-Based Matching ===\n")
+
+        trans_result = results.get("transformation", {})
+
+        if trans_result.get("found"):
+            f.write("Transformation chain found: " +
+                    " -> ".join(trans_result["chain"]) + "\n")
+            f.write(f"Matches found: {len(trans_result['matches'])}\n\n")
+
+            for v1, v2 in trans_result["matches"][:20]:
+                f.write(f"  {v1} -> {v2}\n")
+
+        else:
+            f.write("No valid transformation chain discovered.\n\n")
+
+        # ----------------------------------------------------
+        # 2. MULTI-CONFIGURATION MATCHING
+        # ----------------------------------------------------
+        # f.write("\n=== Multi-Configuration Fuzzy Matching ===\n")
+
+        # mc_result = results.get("multi_config", {})
+
+        # if mc_result:
+        #     f.write(f"Best Config: {mc_result.get('best_config')}\n")
+        #     f.write(f"Number of Matches: {mc_result.get('num_matches')}\n\n")
+
+        #     for v1, v2, score in mc_result.get("matches", [])[:20]:
+        #         f.write(f"  {v1} <-> {v2} (score={score:.3f})\n")
+
+        # else:
+        #     f.write("No multi-configuration match results.\n\n")
+        # 2. MULTI-CONFIGURATION MATCHING (ALL CONFIGS)
+        f.write("\n=== Multi-Configuration Fuzzy Matching (All Configurations) ===\n")
+
+        mc_results = results.get("multi_config", [])
+
+        if not mc_results:
+            f.write("No multi-configuration match results.\n")
+        else:
+            for cfg in mc_results:
+                f.write(f"\n--- Configuration: {cfg['config_name']} ---\n")
+                f.write(f"Threshold: {cfg['threshold']}\n")
+                f.write(f"Matches Found: {cfg['num_matches']}\n\n")
+
+                for v1, v2, score in cfg['matches']:
+                    f.write(f"  {v1} <-> {v2} (score={score:.3f})\n")
+
+        # ----------------------------------------------------
+        # 3. DISTRIBUTION-BASED MATCHING
+        # ----------------------------------------------------
+        f.write("\n=== Distribution-Based Matching ===\n")
+
+        dist_result = results.get("distribution", {})
+        f.write(f"Columns similar by distribution: {dist_result.get('similar')}\n")
+
+    print("\nResults written to output.txt")

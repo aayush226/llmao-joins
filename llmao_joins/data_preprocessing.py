@@ -21,11 +21,17 @@ class DataNormalizer:
 
         # 1. Apply global master abbreviations (if provided)
         if PipelineConfig.abbrevation_master:
-            self.abbreviations.update(PipelineConfig.abbrevation_master)
+            self._load_abbreviation_file(PipelineConfig.abbrevation_master)
 
         # 2. Apply instance-level custom abbreviations (highest priority)
         if custom_abbreviations:
             self.abbreviations.update(custom_abbreviations)
+    
+    def _load_abbreviation_file(self, path):
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                key, value = line.strip().split(",")
+                self.abbreviations[key] = value
     
     def normalize(self, text: str) -> str:
         """
@@ -91,6 +97,8 @@ class DataNormalizer:
     
     def _expand_abbreviations(self, text: str) -> str:
         """Expand known abbreviations"""
+        if not self.abbreviations:
+            return text
         words = text.split()
         expanded = []
         
