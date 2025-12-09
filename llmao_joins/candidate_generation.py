@@ -6,6 +6,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
 from .io_and_normalization import ValueRecord, canonical_form
+from sentence_transformers import SentenceTransformer, util
+import numpy as np
 
 @dataclass
 class CandidatePair:
@@ -50,6 +52,17 @@ def generate_rule_pairs(
     - Pruning: only when canonical forms match.
     """
     # TODO: implement rule based candidate generation
+    if pairs is None:
+        pairs = {}
+
+    for l in left_values:
+        l_canon = canonical_form(l.norm)
+        for r in right_values:
+            r_canon = canonical_form(r.norm)
+            if l_canon and l_canon == r_canon:
+                pair = _get_or_create(pairs, l, r)
+                pair.rule_score = 1.0
+                pair.sources.append("rule")
     return pairs
 
 def generate_string_candidates(
@@ -67,6 +80,31 @@ def generate_string_candidates(
       * discard below min_sim
     """
     # TODO: implement TF-IDF + NN candidate generation
+    if pairs is None:
+        pairs = {}
+
+    left_norms = [v.norm for v in left_values]
+    right_norms = [v.norm for v in right_values]
+
+    vectorizer = TfidfVectorizer(analyzer='char', ngram_range=ngram_range)
+    tfidf_matrix = vectorizer.fit_transform(left_norms + right_norms)
+
+    left_vecs = tfidf_matrix[:len(left_norms)]
+    right_vecs = tfidf_matrix[len(left_norms):]
+
+    nn = NearestNeighbors(n_neighbors=top_k, metric="cosine")
+    nn.fit(right_vecs)
+    distances, indices = nn.kneighbors(left_vecs, return_distance=True)
+
+    for i, (dist_row, idx_row) in enumerate(zip(distances, indices)):
+        left = left_values[i]
+        for dist, j in zip(dist_row, idx_row):
+            sim = 1.0 - dist
+            if sim >= min_sim:
+                right = right_values[j]
+                pair = _get_or_create(pairs, left, right)
+                pair.string_sim = sim
+                pair.sources.append("string")
     return pairs
 
 def generate_embedding_candidates(
@@ -84,4 +122,26 @@ def generate_embedding_candidates(
       * discard below min_sim
     """
     # TODO: implement embedding-based candidate generation
+    if pairs is None:
+        pairs = {}
+
+    model = SentenceTransformer(model_name)
+    left_norms = [v.norm for v in left_values]
+    right_norms = [v.norm for v in right_values]
+
+    left_embeds = model.encode(left_norms, convert_to_tensor=True, show_progress_bar=False)
+    right_embeds = model.encode(right_norms, convert_to_tensor=True, show_progress_bar=False)
+
+    sim_matrix = util.cos_sim(left_embeds, right_embeds).cpu().numpy()
+
+    for i, row in enumerate(sim_matrix):
+        top_indices = np.argpartition(-row, top_k)[:top_k]
+        for j in top_indices:
+            sim = row[j]
+            if sim >= min_sim:
+                left = left_values[i]
+                right = right_values[j]
+                pair = _get_or_create(pairs, left, right)
+                pair.embed_sim = sim
+                pair.sources.append("embed")
     return pairs
