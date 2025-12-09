@@ -1,8 +1,9 @@
 # file: llmao_joins/config.py
 import os
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Optional
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -13,6 +14,7 @@ class PipelineConfig:
     right_csv: str
     left_col: str
     right_col: str
+    abbrevation_master: Optional[str] = None 
     output_dir: str = "outputs"
 
     # Candidate generation limits

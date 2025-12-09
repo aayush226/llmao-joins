@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 import pandas as pd
+from . import data_preprocessing
 
 _WHITESPACE_RE = re.compile(r"\s+")
 
@@ -27,15 +28,9 @@ class ValueRecord:
     side: str  # 'left' or 'right'
 
 def normalize_text(value: str) -> str:
-    if value is None:
-        return ""
-    text = str(value).strip().lower()
-    # drop leading "the "
-    if text.startswith("the "):
-        text = text[4:]
-    # remove punctuation except spaces
-    text = re.sub(r"[^\w\s]", " ", text)
-    text = _WHITESPACE_RE.sub(" ", text).strip()
+    # text = data_preprocessing.DataNormalizer.normalize(value)
+    normalizer = data_preprocessing.DataNormalizer()
+    text = normalizer.normalize(value)
     return text
 
 def canonical_form(norm: str) -> str:

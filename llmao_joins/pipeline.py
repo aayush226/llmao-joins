@@ -34,7 +34,7 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     right_records, right_df = load_column_values(cfg.right_csv, cfg.right_col, side="right")
     metrics["n_left_unique_values"] = len(left_records)
     metrics["n_right_unique_values"] = len(right_records)
-
+    
     if len(left_records) > cfg.max_unique_values or len(right_records) > cfg.max_unique_values:
         raise RuntimeError(
             f"Too many unique values: left={len(left_records)}, right={len(right_records)}, "
@@ -228,6 +228,7 @@ def main():
     parser.add_argument("--neo4j_password", default=None)
     parser.add_argument("--embed_model_name", default="sentence-transformers/all-MiniLM-L6-v2")
     parser.add_argument("--llm_api_key", default=None)
+    parser.add_argument("--abbrevation_master", default=None)
 
     args = parser.parse_args()
 
@@ -241,6 +242,7 @@ def main():
         neo4j_user=args.neo4j_user or os.getenv("NEO4J_USER"),
         neo4j_password=args.neo4j_password or os.getenv("NEO4J_PASSWORD"),
         embed_model_name=args.embed_model_name,
+        abbrevation_master= args.abbrevation_master or None
     )
 
     run_pipeline(cfg, llm_api_key=args.llm_api_key)
