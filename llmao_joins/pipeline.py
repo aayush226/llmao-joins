@@ -228,6 +228,7 @@ def main():
     parser.add_argument("--neo4j_password", default=None)
     parser.add_argument("--embed_model_name", default="sentence-transformers/all-MiniLM-L6-v2")
     parser.add_argument("--llm_api_key", default=None)
+    parser.add_argument("--abbrevation_master", default=None)
 
     args = parser.parse_args()
 
@@ -241,6 +242,7 @@ def main():
         neo4j_user=args.neo4j_user or os.getenv("NEO4J_USER"),
         neo4j_password=args.neo4j_password or os.getenv("NEO4J_PASSWORD"),
         embed_model_name=args.embed_model_name,
+        abbrevation_master= args.abbrevation_master or None
     )
 
     run_pipeline(cfg, llm_api_key=args.llm_api_key)

@@ -5,7 +5,8 @@ from collections import defaultdict
 import pandas as pd
 import numpy as np
 from difflib import SequenceMatcher
-import Levenshtein  # pip install python-Levenshtein
+import Levenshtein
+from config import PipelineConfig
 
 
 class DataNormalizer:
@@ -17,6 +18,12 @@ class DataNormalizer:
             custom_abbreviations: Additional abbreviation mappings
         """
         self.abbreviations = self.ABBREVIATIONS.copy()
+
+        # 1. Apply global master abbreviations (if provided)
+        if PipelineConfig.abbrevation_master:
+            self.abbreviations.update(PipelineConfig.abbrevation_master)
+
+        # 2. Apply instance-level custom abbreviations (highest priority)
         if custom_abbreviations:
             self.abbreviations.update(custom_abbreviations)
     
