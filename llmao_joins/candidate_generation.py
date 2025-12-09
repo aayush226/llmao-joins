@@ -92,6 +92,10 @@ def generate_string_candidates(
     left_vecs = tfidf_matrix[:len(left_norms)]
     right_vecs = tfidf_matrix[len(left_norms):]
 
+    n_neighbors = min(top_k, len(right_values))
+    if n_neighbors == 0:
+        return pairs  # nothing to match against
+
     nn = NearestNeighbors(n_neighbors=top_k, metric="cosine")
     nn.fit(right_vecs)
     distances, indices = nn.kneighbors(left_vecs, return_distance=True)
