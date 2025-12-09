@@ -20,11 +20,21 @@ class LLMStats:
 
 def score_candidate(pair: CandidatePair, cfg: PipelineConfig) -> float:
     """
-    Combine all similarity measures into a single score using configurable weights.
+    Combining all similarity measures into a single score using configurable weights.
     """
-    # TODO: implement scoring combination
-    pair.combined_score = 0.0
-    return 0.0
+    s_rule   = pair.rule_score   or 0.0
+    s_str    = pair.string_sim   or 0.0
+    s_embed  = pair.embed_sim    or 0.0
+    s_llm    = pair.llm_score    or 0.0
+
+    raw = (
+        cfg.w_rule   * s_rule +
+        cfg.w_string * s_str  +
+        cfg.w_embed  * s_embed +
+        cfg.w_llm    * s_llm
+    )    
+    pair.combined_score = max(0.0, min(1.0, raw))
+    return pair.combined_score
 
 def score_all(pairs: Dict[Tuple[str, str], CandidatePair], cfg: PipelineConfig) -> None:
     for p in pairs.values():
