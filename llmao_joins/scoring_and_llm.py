@@ -1,4 +1,5 @@
 # file: llmao_joins/scoring_and_llm.py
+import openai
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
@@ -44,6 +45,9 @@ def _approx_token_count(text: str) -> int:
     # Very rough heuristic: 4 characters per token
     return max(1, int(len(text) / 4))
 
+from .llm_client import ask_if_synonyms, set_openai_key
+import random
+
 def run_llm_gate(
     pairs: Dict[Tuple[str, str], CandidatePair],
     cfg: PipelineConfig,
@@ -57,5 +61,40 @@ def run_llm_gate(
       - better precision on borderline cases
       - explicit accounting of token usage and cost
     """
-    # TODO: to implement LLM gate
-    return LLMStats()
+    stats = LLMStats()
+    if not api_key:
+        print("[LLM GATE] Skipping – No API key provided.")
+        return stats
+    
+    set_openai_key(api_key)
+
+    model = cfg.llm_model
+
+    count = 0
+    candidates = [
+        pair for pair in pairs.values()
+        if cfg.llm_band_low <= (pair.combined_score or 0.0) <= cfg.llm_band_high
+    ]
+    random.shuffle(candidates)  # Avoid bias if over limit
+
+    for pair in candidates:
+        if count >= cfg.max_llm_queries:
+            break
+
+        answer = ask_if_synonyms(pair.left_norm, pair.right_norm, model=model)
+
+        if answer == "YES":
+            pair.llm_score = 1.0
+        elif answer == "NO":
+            pair.llm_score = 0.0
+        else:
+            continue  # skip scoring if unsure
+
+        count += 1
+        prompt_tokens = _approx_token_count(pair.left_norm + pair.right_norm)
+        stats.n_calls += 1
+        stats.total_prompt_tokens += prompt_tokens
+        stats.total_completion_tokens += 1  # assume 1 token response
+
+    print(f"[LLM GATE] Queried {count} pairs using {model}")
+    return stats
