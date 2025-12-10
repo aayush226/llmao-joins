@@ -87,7 +87,7 @@ def run_llm_gate(
         if answer == "YES":
             pair.llm_score = 1.0
         elif answer == "NO":
-            pair.llm_score = -1.0   # penalize
+            pair.llm_score = 0.0   # penalize
         else:
             continue  # UNKNOWN → no change
 
