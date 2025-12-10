@@ -10,6 +10,9 @@ import json
 import os
 import time
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -161,10 +164,10 @@ def main():
             left_col="title",
             right_col="title",
             output_dir=os.path.join(args.output_root, f"{name}_llmao"),
-            llm_api_key=args.llm_api_key,
+            llm_api_key=args.llm_api_key or os.getenv("LLM_API_KEY"),
         )
 
-        llmao_metrics = run_llmao_benchmark(cfg, llm_api_key=args.llm_api_key)
+        llmao_metrics = run_llmao_benchmark(cfg, llm_api_key=cfg.llm_api_key)
 
         summary.append(
             {
