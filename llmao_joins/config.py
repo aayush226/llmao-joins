@@ -27,7 +27,7 @@ class PipelineConfig:
 
     # Embedding-based candidate generation
     embed_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
-    embed_top_k: int = 20
+    embed_top_k: int = 10
     embed_min_sim: float = 0.55
 
     # Scoring weights (how we combine multiple similarity measures)
@@ -45,7 +45,7 @@ class PipelineConfig:
     accept_threshold: float = 0.60
     llm_band_low: float = 0.40
     llm_band_high: float = 0.65
-    max_llm_queries: int = 850
+    max_llm_queries: int = 1000
 
     # Neo4j connection
     neo4j_uri: str = os.getenv("NEO4J_URI")
