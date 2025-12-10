@@ -8,7 +8,8 @@ import networkx as nx
 
 from .candidate_generation import CandidatePair
 from .config import PipelineConfig
-
+from networkx.algorithms.community import asyn_lpa_communities
+from .io_and_normalization import ValueRecord
 
 @dataclass
 class GraphStats:
@@ -91,6 +92,9 @@ class Neo4jGraph:
 
     @staticmethod
     def _upsert_pair_tx(tx, pair: CandidatePair):
+        # Deduplicate sources for this pair before sending to Neo4j
+        sources = list(dict.fromkeys(pair.sources or []))
+
         cypher = """
         MERGE (a:Value {value: $left})
         ON CREATE SET
@@ -126,7 +130,7 @@ class Neo4jGraph:
             r.embed_sim      = coalesce($embed_sim, r.embed_sim),
             r.llm_score      = coalesce($llm_score, r.llm_score),
             r.combined_score = coalesce($combined_score, r.combined_score),
-            // Append sources list (may contain duplicates need to be fixed)
+            // Append sources list (may contain duplicates across runs)
             r.sources        = coalesce(r.sources, []) + $sources,
             r.seen_count     = coalesce(r.seen_count, 0) + 1
         """
@@ -139,8 +143,7 @@ class Neo4jGraph:
             embed_sim=pair.embed_sim,
             llm_score=pair.llm_score,
             combined_score=pair.combined_score,
-            # Neo4j expects a list, so making sure we give it one
-            sources=pair.sources or [],
+            sources=sources,
         )
 
     # ---------- READ / EXPORT ----------
@@ -150,11 +153,7 @@ class Neo4jGraph:
         Exports an undirected graph of Value nodes for edges with
         combined_score >= threshold.
 
-        - we ask Neo4j: "Give me all pairs (a,b) where the edge between
-          them is strong enough (above threshold)."
-        - Build a NetworkX Graph from those pairs.
-        - That graph includes edges learned in previous runs, not just
-          current run, because they persist in Neo4j.
+        The NetworkX graph includes an edge weight set to r.combined_score.
         """
         G = nx.Graph()
         with self.driver.session() as session:
@@ -162,12 +161,16 @@ class Neo4jGraph:
                 """
                 MATCH (a:Value)-[r:ALIAS_WITH]->(b:Value)
                 WHERE r.combined_score >= $threshold
-                RETURN a.value AS left, b.value AS right
+                RETURN a.value AS left, b.value AS right, r.combined_score AS score
                 """,
                 threshold=threshold,
             )
             for record in result:
-                G.add_edge(record["left"], record["right"])
+                left = record["left"]
+                right = record["right"]
+                score = record["score"]
+                # Undirected edge with weight = combined_score
+                G.add_edge(left, right, weight=score)
         return G
 
     def write_cluster_ids(self, cluster_map: Dict[str, int]) -> None:
@@ -215,8 +218,6 @@ class Neo4jGraph:
                 mapping[rec["value"]] = rec["cid"]
         return mapping
 
-from networkx.algorithms.community import label_propagation_communities
-
 def build_graph_and_clusters(
     pairs: Dict[Tuple[str, str], CandidatePair],
     cfg: PipelineConfig,
@@ -247,11 +248,12 @@ def build_graph_and_clusters(
     # 2) Export accepted subgraph (combined_score >= accept_threshold)
     G = neo.export_graph_for_threshold(cfg.accept_threshold)
 
-    # 3) Label propagation => communities / synonym sets
+    # 3) Weighted label propagation => communities / synonym sets
     cluster_map: Dict[str, int] = {}
 
     if G.number_of_nodes() > 0:
-        communities = label_propagation_communities(G)
+        # Uses edge attribute "weight" (combined_score) to influence communities
+        communities = asyn_lpa_communities(G, weight="weight")
         for cluster_id, community in enumerate(communities, start=1):
             for value in community:
                 cluster_map[value] = cluster_id
@@ -267,3 +269,82 @@ def build_graph_and_clusters(
     graph_stats.cluster_map = cluster_map
 
     return graph_stats
+
+def bootstrap_pairs_from_existing_clusters(
+    left_values: List[ValueRecord],
+    right_values: List[ValueRecord],
+    cfg: PipelineConfig,
+) -> Dict[Tuple[str, str], CandidatePair]:
+    """
+    Use existing cluster_ids in Neo4j to pre create high confidence candidate pairs.
+
+    Idea:
+      - Query Neo4j for cluster_ids of all normalized values in this run.
+      - For any cluster_id that appears on both left and right sides, create
+        CandidatePairs for all (left, right) combos in that cluster.
+
+    This lets us:
+      - Reuse knowledge from previous runs ("graph memory").
+      - Avoid recomputing expensive embeddings/LLM for pairs we already
+        know are synonyms.
+    """
+    # Connect to Neo4j and fetch existing cluster_ids for all norms
+    neo = Neo4jGraph(cfg)
+    try:
+        all_norms = {v.norm for v in (left_values + right_values)}
+        if not all_norms:
+            return {}
+
+        existing_clusters = neo.get_cluster_ids_for_values(list(all_norms))
+    finally:
+        neo.close()
+
+    # Group left/right values by existing cluster_id
+    cluster_to_left: Dict[int, List[ValueRecord]] = {}
+    cluster_to_right: Dict[int, List[ValueRecord]] = {}
+
+    for v in left_values:
+        cid = existing_clusters.get(v.norm)
+        if cid is not None:
+            cluster_to_left.setdefault(cid, []).append(v)
+
+    for v in right_values:
+        cid = existing_clusters.get(v.norm)
+        if cid is not None:
+            cluster_to_right.setdefault(cid, []).append(v)
+
+    # Build CandidatePairs for any cluster that has both left and right members
+    pairs: Dict[Tuple[str, str], CandidatePair] = {}
+
+    for cid, lefts in cluster_to_left.items():
+        rights = cluster_to_right.get(cid)
+        if not rights:
+            continue
+
+        for l in lefts:
+            for r in rights:
+                key = (l.raw, r.raw)
+                if key not in pairs:
+                    # Treat graph knowledge as very strong prior:
+                    # set all three similarity signals to 1.0 so scoring
+                    # will give a combined_score ~ 1.0.
+                    pairs[key] = CandidatePair(
+                        left_raw=l.raw,
+                        right_raw=r.raw,
+                        left_norm=l.norm,
+                        right_norm=r.norm,
+                        rule_score=1.0,
+                        string_sim=1.0,
+                        embed_sim=1.0,
+                        sources=["graph_prior"],
+                    )
+                else:
+                    pair = pairs[key]
+                    # Ensure prior scores & source are present
+                    pair.rule_score = pair.rule_score or 1.0
+                    pair.string_sim = pair.string_sim or 1.0
+                    pair.embed_sim = pair.embed_sim or 1.0
+                    if "graph_prior" not in pair.sources:
+                        pair.sources.append("graph_prior")
+
+    return pairs

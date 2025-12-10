@@ -19,7 +19,7 @@ from .candidate_generation import (
     generate_string_candidates,
 )
 from .scoring_and_llm import score_all, run_llm_gate
-from .graph_and_clusters import build_graph_and_clusters
+from .graph_and_clusters import build_graph_and_clusters, bootstrap_pairs_from_existing_clusters
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -48,16 +48,24 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     # ---------------------------------------------------------
     # STEP 2 — CANDIDATE GENERATION
     # ---------------------------------------------------------
-    pairs: Dict[Tuple[str, str], CandidatePair] = {}
 
-    # 2a — RULE-BASED MATCHES (cheap, high precision)
+    # 2a — Bootstrap from existing graph clusters (knowledge reuse)
+    pairs: Dict[Tuple[str, str], CandidatePair] = bootstrap_pairs_from_existing_clusters(
+        left_records,
+        right_records,
+        cfg,
+    )
+    t_bootstrap_done = time.perf_counter()
+    metrics["n_graph_prior_pairs"] = len(pairs)
+    metrics["time_graph_prior_sec"] = t_bootstrap_done - t1
+
+    # 2b — Rule-based
     pairs = generate_rule_pairs(left_records, right_records, pairs)
     t2 = time.perf_counter()
-    metrics["time_rule_pairs_sec"] = t2 - t1
+    metrics["time_rule_pairs_sec"] = t2 - t_bootstrap_done
     metrics["n_rule_pairs"] = len(pairs)
 
-    # 2b — STRING SIMILARITY MATCHES
-    # (If teammate should work here, comment out below)
+    # 2c — STRING SIMILARITY MATCHES
     pairs = generate_string_candidates(
         left_records,
         right_records,
@@ -70,8 +78,7 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     metrics["time_string_candidates_sec"] = t3 - t2
     metrics["n_pairs_after_string"] = len(pairs)
 
-    # 2c — EMBEDDING-BASED MATCHES (SentenceTransformers)
-    # (Optional: comment out so teammates implement)
+    # 2d — EMBEDDING-BASED MATCHES (SentenceTransformers)
     pairs = generate_embedding_candidates(
         left_records,
         right_records,
@@ -94,7 +101,6 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     # ---------------------------------------------------------
     # STEP 4 — LLM GATE FOR UNCERTAIN MATCHES
     # ---------------------------------------------------------
-    # NOTE: defining t6 so the later timing logic works.
     t6 = time.perf_counter()
     llm_stats = run_llm_gate(pairs, cfg, api_key=llm_api_key)
     t7 = time.perf_counter()
@@ -116,10 +122,11 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
 
     # ---------------------------------------------------------
     # STEP 6 — BUILD GRAPH IN NEO4J + EXTRACT CLUSTERS
-    # ---------------------------------------------------------    
+    # ---------------------------------------------------------
+    t8 = time.perf_counter()
     graph_stats = build_graph_and_clusters(pairs, cfg)
-    t7 = time.perf_counter()
-    metrics["time_graph_and_clusters_sec"] = t7 - t6
+    t9 = time.perf_counter()
+    metrics["time_graph_and_clusters_sec"] = t9 - t8
     metrics["graph_n_nodes"] = graph_stats.n_nodes
     metrics["graph_n_edges"] = graph_stats.n_edges
     metrics["graph_n_clusters"] = graph_stats.n_clusters
@@ -145,6 +152,9 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     left_df_out["__cluster_id"] = left_cluster_ids
     right_df_out["__cluster_id"] = right_cluster_ids
 
+    left_df_out = left_df_out[left_df_out["__cluster_id"].notna()]
+    right_df_out = right_df_out[right_df_out["__cluster_id"].notna()]
+
     joined = pd.merge(
         left_df_out,
         right_df_out,
@@ -153,9 +163,9 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
         suffixes=("_left", "_right"),
     )
 
-    t8 = time.perf_counter()
-    metrics["time_join_materialization_sec"] = t8 - t7
-    metrics["total_runtime_sec"] = t8 - t0
+    t10 = time.perf_counter()
+    metrics["time_join_materialization_sec"] = t10 - t9
+    metrics["total_runtime_sec"] = t10 - t0
     metrics["n_joined_rows"] = len(joined)
 
     # ---------------------------------------------------------

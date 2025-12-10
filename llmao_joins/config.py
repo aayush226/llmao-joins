@@ -31,13 +31,13 @@ class PipelineConfig:
     embed_min_sim: float = 0.75
 
     # Scoring weights (how we combine multiple similarity measures)
-    w_rule: float = 0.5
-    w_string: float = 0.3
-    w_embed: float = 0.3
+    w_rule: float = 0.6
+    w_string: float = 0.2
+    w_embed: float = 0.2
     w_llm: float = 0.7
 
     # Acceptance / LLM band
-    accept_threshold: float = 0.75
+    accept_threshold: float = 0.55
     llm_band_low: float = 0.4
     llm_band_high: float = 0.8
     max_llm_queries: int = 500
