@@ -215,7 +215,7 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     metrics["time_scoring_sec"] = t5 - t5_start
     print(f"  Extracted features for {len(pairs)} pairs")
     print(f"  Time: {t5-t5_start:.2f}s\n")
-    store_random_pairs_in_file(pairs)
+    
     # ---------------------------------------------------------
     # STEP 4 – CONFIDENCE CATEGORIZATION
     # ---------------------------------------------------------
