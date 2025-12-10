@@ -23,17 +23,50 @@ def score_candidate(pair: CandidatePair, cfg: PipelineConfig) -> float:
     """
     Combining all similarity measures into a single score using configurable weights.
     """
-    s_rule   = pair.rule_score   or 0.0
-    s_str    = pair.string_sim   or 0.0
-    s_embed  = pair.embed_sim    or 0.0
-    s_llm    = pair.llm_score    or 0.0
+    f = pair.features or {}
 
-    raw = (
-        cfg.w_rule   * s_rule +
-        cfg.w_string * s_str  +
-        cfg.w_embed  * s_embed +
-        cfg.w_llm    * s_llm
-    )    
+    # Collect (score, weight) only for signals we actually have
+    scores = []
+    weights = []
+
+    if pair.rule_score is not None:
+        scores.append(pair.rule_score)
+        weights.append(cfg.w_rule)
+
+    if pair.string_sim is not None:
+        scores.append(pair.string_sim)
+        weights.append(cfg.w_string)
+
+    if pair.embed_sim is not None:
+        scores.append(pair.embed_sim)
+        weights.append(cfg.w_embed)
+
+    if pair.llm_score is not None:
+        scores.append(pair.llm_score)
+        weights.append(cfg.w_llm)
+
+    # feature-based scores
+    if "levenshtein_sim" in f:
+        scores.append(f["levenshtein_sim"])
+        weights.append(cfg.w_levenshtein)
+
+    if "jaro_winkler" in f:
+        scores.append(f["jaro_winkler"])
+        weights.append(cfg.w_jaro_winkler)
+
+    if "ngram_jaccard" in f:
+        scores.append(f["ngram_jaccard"])
+        weights.append(cfg.w_ngram_jaccard)
+
+    if "minhash" in f:
+        scores.append(f["minhash"])
+        weights.append(cfg.w_minhash)
+
+    if not scores:
+        pair.combined_score = 0.0
+        return 0.0
+
+    raw = sum(s * w for s, w in zip(scores, weights)) / sum(weights)
     pair.combined_score = max(0.0, min(1.0, raw))
     return pair.combined_score
 
