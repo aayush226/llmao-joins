@@ -67,15 +67,16 @@ def run_llm_gate(
         return stats
     
     set_openai_key(api_key)
-
     model = cfg.llm_model
 
     count = 0
     candidates = [
         pair for pair in pairs.values()
         if cfg.llm_band_low <= (pair.combined_score or 0.0) <= cfg.llm_band_high
+        # skip trivial perfect self-matches
+        and not (pair.rule_score == 1.0 and pair.left_norm == pair.right_norm)
     ]
-    random.shuffle(candidates)  # Avoid bias if over limit
+    random.shuffle(candidates)
 
     for pair in candidates:
         if count >= cfg.max_llm_queries:
@@ -86,15 +87,19 @@ def run_llm_gate(
         if answer == "YES":
             pair.llm_score = 1.0
         elif answer == "NO":
-            pair.llm_score = 0.0
+            pair.llm_score = -1.0   # penalize
         else:
-            continue  # skip scoring if unsure
+            continue  # UNKNOWN → no change
+
+        # (optional but nice) mark that LLM was used
+        if "llm" not in pair.sources:
+            pair.sources.append("llm")
 
         count += 1
         prompt_tokens = _approx_token_count(pair.left_norm + pair.right_norm)
         stats.n_calls += 1
         stats.total_prompt_tokens += prompt_tokens
-        stats.total_completion_tokens += 1  # assume 1 token response
+        stats.total_completion_tokens += 1
 
     print(f"[LLM GATE] Queried {count} pairs using {model}")
     return stats

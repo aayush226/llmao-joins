@@ -53,17 +53,28 @@ def generate_rule_pairs(
     - Inputs: normalized values from left/right join columns.
     - Pruning: only when canonical forms match.
     """
-    # TODO: implement rule based candidate generation
     if pairs is None:
         pairs = {}
 
-    for l in left_values:
-        for r in right_values:
-            score = fuzz.token_sort_ratio(l.norm, r.norm)
-            if score >= threshold:
+    # Index by normalized value for fast cross-joins
+    left_by_norm: Dict[str, List[ValueRecord]] = {}
+    right_by_norm: Dict[str, List[ValueRecord]] = {}
+
+    for v in left_values:
+        left_by_norm.setdefault(v.norm, []).append(v)
+    for v in right_values:
+        right_by_norm.setdefault(v.norm, []).append(v)
+
+    shared_norms = set(left_by_norm.keys()) & set(right_by_norm.keys())
+
+    for norm in shared_norms:
+        for l in left_by_norm[norm]:
+            for r in right_by_norm[norm]:
                 pair = _get_or_create(pairs, l, r)
                 pair.rule_score = 1.0
-                pair.sources.append("rule")
+                if "rule" not in pair.sources:
+                    pair.sources.append("rule")
+
     return pairs
 
 def generate_string_candidates(
@@ -80,18 +91,17 @@ def generate_string_candidates(
       * only top_k nearest neighbors from right for each left value
       * discard below min_sim
     """
-    # TODO: implement TF-IDF + NN candidate generation
     if pairs is None:
         pairs = {}
 
     left_norms = [v.norm for v in left_values]
     right_norms = [v.norm for v in right_values]
 
-    vectorizer = TfidfVectorizer(analyzer='char', ngram_range=ngram_range)
+    vectorizer = TfidfVectorizer(analyzer="char", ngram_range=ngram_range)
     tfidf_matrix = vectorizer.fit_transform(left_norms + right_norms)
 
-    left_vecs = tfidf_matrix[:len(left_norms)]
-    right_vecs = tfidf_matrix[len(left_norms):]
+    left_vecs = tfidf_matrix[: len(left_norms)]
+    right_vecs = tfidf_matrix[len(left_norms) :]
 
     n_neighbors = min(top_k, len(right_values))
     if n_neighbors == 0:
@@ -105,11 +115,22 @@ def generate_string_candidates(
         left = left_values[i]
         for dist, j in zip(dist_row, idx_row):
             sim = 1.0 - dist
-            if sim >= min_sim:
-                right = right_values[j]
-                pair = _get_or_create(pairs, left, right)
+            if sim < min_sim:
+                continue
+
+            right = right_values[j]
+            pair = _get_or_create(pairs, left, right)
+
+            # Keep the best string similarity we've seen
+            # (so we don't downgrade graph_prior = 1.0)
+            if pair.string_sim is None or sim > pair.string_sim:
                 pair.string_sim = sim
+                pair.features["string_sim"] = sim
+
+            # Avoid duplicate "string" entries
+            if "string" not in pair.sources:
                 pair.sources.append("string")
+
     return pairs
 
 def generate_embedding_candidates(
@@ -122,36 +143,70 @@ def generate_embedding_candidates(
 ) -> Dict[Tuple[str, str], CandidatePair]:
     """
     Step 2c: Semantic candidates via SentenceTransformer embeddings.
-    - Pruning:
-      * only top_k semantic neighbors per left value
-      * discard below min_sim
+
+    - Uses SentenceTransformer to encode left/right normalized values.
+    - Uses util.semantic_search to find the top_k most similar right values
+      for each left value (cosine similarity).
+    - Only keeps pairs with similarity >= min_sim.
     """
-    # TODO: implement embedding-based candidate generation
     if pairs is None:
         pairs = {}
 
+    # Nothing to do if either side is empty
+    if not left_values or not right_values:
+        return pairs
+
+    # Load embedding model
     model = SentenceTransformer(model_name)
+
+    # Prepare normalized texts
     left_norms = [v.norm for v in left_values]
     right_norms = [v.norm for v in right_values]
 
-    left_embeds = model.encode(left_norms, convert_to_tensor=True, show_progress_bar=False)
-    right_embeds = model.encode(right_norms, convert_to_tensor=True, show_progress_bar=False)
+    # Encode as tensors for semantic_search
+    left_embeds = model.encode(
+        left_norms,
+        convert_to_tensor=True,
+        show_progress_bar=False,
+        normalize_embeddings=True,  # cosine similarity becomes dot product sincr we normalise
+    )
+    right_embeds = model.encode(
+        right_norms,
+        convert_to_tensor=True,
+        show_progress_bar=False,
+        normalize_embeddings=True,
+    )
 
-    sim_matrix = util.cos_sim(left_embeds, right_embeds).cpu().numpy()
+    # Cap top_k so we don't ask for more neighbors than we have
+    top_k = min(top_k, len(right_values))
+    if top_k <= 0:
+        return pairs
 
-    top_k = min(top_k, len(right_values)) 
-    for i, row in enumerate(sim_matrix):
-        safe_k = min(top_k, len(row))
-        if safe_k == 0:
-            continue  # Skip if no candidates
-        safe_k = min(safe_k, len(row) - 1)  # Avoid out-of-bounds
-        top_indices = np.argpartition(-row, safe_k)[:safe_k]
-        for j in top_indices:
-            sim = row[j]
-            if sim >= min_sim:
-                left = left_values[i]
-                right = right_values[j]
-                pair = _get_or_create(pairs, left, right)
+    # Perform semantic search: for each left embedding, get top_k right neighbors
+    search_results = util.semantic_search(
+        query_embeddings=left_embeds,
+        corpus_embeddings=right_embeds,
+        top_k=top_k,
+    )
+
+    for i, hits in enumerate(search_results):
+        left = left_values[i]
+        for hit in hits:
+            j = hit["corpus_id"]
+            sim = float(hit["score"])
+
+            # Filter by minimum similarity
+            if sim < min_sim:
+                continue
+
+            right = right_values[j]
+            pair = _get_or_create(pairs, left, right)
+
+            # Keep the best embedding similarity we've seen for this pair
+            if pair.embed_sim is None or sim > pair.embed_sim:
                 pair.embed_sim = sim
+                pair.features["embed_sim"] = sim
+
+            if "embed" not in pair.sources:
                 pair.sources.append("embed")
     return pairs

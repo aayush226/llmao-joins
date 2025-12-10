@@ -47,8 +47,10 @@ def load_column_values(csv_path: str, column: str, side: str) -> Tuple[List[Valu
     records: List[ValueRecord] = []
     for raw in series.unique():
         norm = normalize_text(raw)
-        records.append(ValueRecord(raw=raw, norm=norm, side=side))
+        canon = canonical_form(norm)  # we missed to apply abbreviation or canonical mapping here. the rules are trvial but we cant generalise to universal case. so just plugging in.
+        records.append(ValueRecord(raw=raw, norm=canon, side=side))
     return records, df
+
 
 def build_lookup(records: List[ValueRecord]) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
     """
