@@ -11,4 +11,4 @@ python-Levenshtein>=0.27.3
 rapidfuzz>=3.5.2
 seaborn>=0.12
 matplotlib>=3.7
-autofj>=0.1.5
+autofj
