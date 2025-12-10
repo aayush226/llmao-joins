@@ -24,6 +24,9 @@ from .graph_and_clusters import build_graph_and_clusters, bootstrap_pairs_from_e
 from dotenv import load_dotenv
 load_dotenv()
 
+def _fmt_score(x: float | None) -> str:
+    return "None" if x is None else f"{x:.3f}"
+
 def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     os.makedirs(cfg.output_dir, exist_ok=True)
     metrics: Dict[str, float | int] = {}
@@ -98,6 +101,24 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     t5 = time.perf_counter()
     metrics["time_scoring_sec"] = t5 - t4
 
+    # DEBUG: Top 10 pairs BEFORE LLM gate
+    debug_before = sorted(
+        pairs.values(),
+        key=lambda p: p.combined_score or 0.0,
+        reverse=True,
+    )[:10]
+    print("\n[DEBUG] Top 10 pairs BEFORE LLM gate:")
+    for p in debug_before:
+        print(
+            f"  {p.left_raw!r} ↔ {p.right_raw!r} | "
+            f"rule={_fmt_score(p.rule_score)} "
+            f"str={_fmt_score(p.string_sim)} "
+            f"embed={_fmt_score(p.embed_sim)} "
+            f"llm={_fmt_score(p.llm_score)} "
+            f"combined={_fmt_score(p.combined_score)} "
+            f"sources={p.sources}"
+        )
+
     # ---------------------------------------------------------
     # STEP 4 — LLM GATE FOR UNCERTAIN MATCHES
     # ---------------------------------------------------------
@@ -111,6 +132,24 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
 
     # Re-score all pairs after injecting llm_score
     score_all(pairs, cfg)
+
+    # DEBUG: Top 10 pairs AFTER LLM gate
+    debug_after = sorted(
+        pairs.values(),
+        key=lambda p: p.combined_score or 0.0,
+        reverse=True,
+    )[:10]
+    print("\n[DEBUG] Top 10 pairs AFTER LLM gate:")
+    for p in debug_after:
+        print(
+            f"  {p.left_raw!r} ↔ {p.right_raw!r} | "
+            f"rule={_fmt_score(p.rule_score)} "
+            f"str={_fmt_score(p.string_sim)} "
+            f"embed={_fmt_score(p.embed_sim)} "
+            f"llm={_fmt_score(p.llm_score)} "
+            f"combined={_fmt_score(p.combined_score)} "
+            f"sources={p.sources}"
+        )
     # ---------------------------------------------------------
     # STEP 5 — ACCEPT HIGH CONFIDENCE MATCHES
     # ---------------------------------------------------------
@@ -189,6 +228,25 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
         })
     pd.DataFrame(pairs_rows).to_csv(
         os.path.join(cfg.output_dir, "matched_pairs.csv"), index=False
+    )
+
+     # DEBUG: Save ALL candidate pairs (accepted + rejected)
+    all_rows = []
+    for p in pairs.values():
+        all_rows.append({
+            "left_raw": p.left_raw,
+            "right_raw": p.right_raw,
+            "left_norm": p.left_norm,
+            "right_norm": p.right_norm,
+            "rule_score": p.rule_score,
+            "string_sim": p.string_sim,
+            "embed_sim": p.embed_sim,
+            "llm_score": p.llm_score,
+            "combined_score": p.combined_score,
+            "sources": ",".join(p.sources),
+        })
+    pd.DataFrame(all_rows).to_csv(
+        os.path.join(cfg.output_dir, "all_candidate_pairs.csv"), index=False
     )
 
     # Save clusters
