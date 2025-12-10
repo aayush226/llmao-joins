@@ -2,15 +2,16 @@
 import json
 import os
 import time
-from typing import Dict, Tuple
-
+from typing import Dict, Tuple, List
 import pandas as pd
 import networkx as nx
+import random
 
 from .config import PipelineConfig
 from .io_and_normalization import (
     build_lookup,
     load_column_values,
+    ValueRecord
 )
 from .candidate_generation import (
     CandidatePair,
@@ -18,15 +19,87 @@ from .candidate_generation import (
     generate_rule_pairs,
     generate_string_candidates,
 )
+from .data_preprocessing import (
+    DataNormalizer,
+    CandidatePairGenerator,
+    PairStatistics,
+    StringSimilarity,
+    NGramGenerator,
+    MinHash
+)
 from .scoring_and_llm import score_all, run_llm_gate
 from .graph_and_clusters import build_graph_and_clusters, bootstrap_pairs_from_existing_clusters
 
 from dotenv import load_dotenv
 load_dotenv()
 
+def convert_to_tuple_format(pairs_dict: Dict[Tuple[str, str], CandidatePair]) -> List[Tuple[str, str, float]]:
+    """Convert CandidatePair dict to list of (v1, v2, score) tuples"""
+    result = []
+    for pair in pairs_dict.values():
+        # Use the combined score if available, otherwise use max of available scores
+        score = pair.combined_score
+        if score is None:
+            score = max([s for s in [pair.rule_score, pair.string_sim, pair.embed_sim] if s is not None], default=0.0)
+        result.append((pair.left_norm, pair.right_norm, score))
+    return result
+
+
+def extract_features_from_pair(pair: CandidatePair, string_sim: StringSimilarity, ngram_gen: NGramGenerator) -> Dict[str, float]:
+    """Extract comprehensive features from a candidate pair"""
+    features = {}
+    
+    # Existing scores
+    features['rule_score'] = pair.rule_score or 0.0
+    features['string_sim'] = pair.string_sim or 0.0
+    features['embed_sim'] = pair.embed_sim or 0.0
+    
+    # String similarity features
+    features['levenshtein_sim'] = string_sim.levenshtein_similarity(pair.left_norm, pair.right_norm)
+    features['levenshtein_dist'] = string_sim.levenshtein_distance(pair.left_norm, pair.right_norm)
+    features['jaro_winkler'] = string_sim.jaro_winkler_similarity(pair.left_norm, pair.right_norm)
+    
+    # N-gram features
+    ngrams1 = ngram_gen.generate_ngrams(pair.left_norm, 3)
+    ngrams2 = ngram_gen.generate_ngrams(pair.right_norm, 3)
+    features['ngram_jaccard'] = ngram_gen.jaccard_similarity(ngrams1, ngrams2)
+    
+    # Length features
+    features['length_diff'] = abs(len(pair.left_norm) - len(pair.right_norm))
+    features['length_ratio'] = min(len(pair.left_norm), len(pair.right_norm)) / max(len(pair.left_norm), len(pair.right_norm)) if max(len(pair.left_norm), len(pair.right_norm)) > 0 else 0
+    
+    # Word-level features
+    words1 = set(pair.left_norm.split())
+    words2 = set(pair.right_norm.split())
+    features['word_jaccard'] = ngram_gen.jaccard_similarity(words1, words2)
+    features['word_count_diff'] = abs(len(words1) - len(words2))
+    
+    minhash = MinHash(num_hashes=200)
+
+    # Calculate MinHash-based Jaccard similarity between two sets
+    features['minhash']= minhash.jaccard_similarity(words1, words2)
+
+    # Prefix/suffix features
+    max_prefix = 0
+    for i in range(min(len(pair.left_norm), len(pair.right_norm))):
+        if pair.left_norm[i] == pair.right_norm[i]:
+            max_prefix += 1
+        else:
+            break
+    features['common_prefix_length'] = max_prefix
+    features['common_prefix_ratio'] = max_prefix / min(len(pair.left_norm), len(pair.right_norm)) if min(len(pair.left_norm), len(pair.right_norm)) > 0 else 0
+    
+    return features
+
+
 def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     os.makedirs(cfg.output_dir, exist_ok=True)
     metrics: Dict[str, float | int] = {}
+
+    # Initialize components
+    normalizer = DataNormalizer()
+    string_sim = StringSimilarity()
+    ngram_gen = NGramGenerator()
 
     # ---------------------------------------------------------
     # STEP 1 — LOAD + NORMALIZE INPUT TABLES
@@ -92,14 +165,86 @@ def run_pipeline(cfg: PipelineConfig, llm_api_key: str | None = None) -> None:
     metrics["n_pairs_after_embedding"] = len(pairs)
 
     # ---------------------------------------------------------
-    # STEP 3 — SCORE ALL CANDIDATES
+    # STEP 3 – FEATURE EXTRACTION & SCORING
     # ---------------------------------------------------------
-    score_all(pairs, cfg)          # Weighted combination scoring
+    print("[STEP 3] Extracting features and scoring...")
+    t5_start = time.perf_counter()
+    
+    for pair in pairs.values():
+        # Extract comprehensive features
+        pair.features = extract_features_from_pair(pair, string_sim, ngram_gen)
+        
+        # Calculate combined score (weighted average)
+        scores = []
+        weights = []
+        
+        if pair.rule_score is not None:
+            scores.append(pair.rule_score)
+            weights.append(cfg.w_rule)
+        
+        if pair.string_sim is not None:
+            scores.append(pair.string_sim)
+            weights.append(cfg.w_string)
+        
+        if pair.embed_sim is not None:
+            scores.append(pair.embed_sim)
+            weights.append(cfg.w_embed)
+        if pair.features['jaro_winkler'] is not None:
+            scores.append(pair.features['jaro_winkler'])
+            weights.append(cfg.w_jaro_winkler)
+
+        # Add Levenshtein similarity if available
+        if pair.features['levenshtein_sim'] is not None:
+            scores.append(pair.features['levenshtein_sim'])
+            weights.append(cfg.w_levenshtein)
+
+        # Add n-gram similarity if available
+        if pair.features['ngram_jaccard'] is not None:
+            scores.append(pair.features['ngram_jaccard'])
+            weights.append(cfg.w_ngram_jaccard)
+        if pair.features['minhash'] is not None:
+            scores.append(pair.features['minhash'])
+            weights.append(cfg.w_minhash)
+
+        if scores:
+            pair.combined_score = sum(s * w for s, w in zip(scores, weights)) / sum(weights)
+        else:
+            pair.combined_score = 0.0
+    
     t5 = time.perf_counter()
-    metrics["time_scoring_sec"] = t5 - t4
+    metrics["time_scoring_sec"] = t5 - t5_start
+    print(f"  Extracted features for {len(pairs)} pairs")
+    print(f"  Time: {t5-t5_start:.2f}s\n")
+    
+    # ---------------------------------------------------------
+    # STEP 4 – CONFIDENCE CATEGORIZATION
+    # ---------------------------------------------------------
+    print("[STEP 4] Categorizing by confidence...")
+    
+    # Convert to tuple format for filtering
+    tuple_pairs = convert_to_tuple_format(pairs)
+    
+    # Use PairStatistics for categorization
+    categorized = PairStatistics.filter_by_confidence(
+        tuple_pairs,
+        high_threshold=cfg.w_high,
+        low_threshold=cfg.w_low
+    )
+    
+    high_conf = categorized['high_confidence']
+    medium_conf = categorized['uncertain']
+    low_conf = categorized['low_confidence']
+    
+    metrics["n_high_confidence"] = len(high_conf)
+    metrics["n_medium_confidence"] = len(medium_conf)
+    metrics["n_low_confidence"] = len(low_conf)
+    
+    print(f"  High confidence (auto-accept): {len(high_conf)}")
+    print(f"  Medium confidence (→ LLM): {len(medium_conf)}")
+    print(f"  Low confidence (reject): {len(low_conf)}\n")
 
     # ---------------------------------------------------------
-    # STEP 4 — LLM GATE FOR UNCERTAIN MATCHES
+    # STEP 5 – LLM GATE (OPTIONAL)
     # ---------------------------------------------------------
     t6 = time.perf_counter()
     llm_stats = run_llm_gate(pairs, cfg, api_key=llm_api_key)
@@ -233,8 +378,6 @@ def main():
     parser.add_argument("--left_col", required=True)
     parser.add_argument("--right_col", required=True)
     parser.add_argument("--output_dir", default="outputs")
-
-    # optinal - i moved passwords to .env
     parser.add_argument("--neo4j_uri", default=None)
     parser.add_argument("--neo4j_user", default=None)
     parser.add_argument("--neo4j_password", default=None)

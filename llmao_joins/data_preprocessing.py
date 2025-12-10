@@ -6,7 +6,10 @@ import pandas as pd
 import numpy as np
 from difflib import SequenceMatcher
 import Levenshtein
+import random
 from .config import PipelineConfig
+
+import hashlib
 
 
 class DataNormalizer:
@@ -124,7 +127,84 @@ class DataNormalizer:
         """
         return df[column].astype(str).apply(self.normalize)
 
+class MinHash:
+    def __init__(self, num_hashes: int = 200):
+        """
+        Initialize the MinHash object with the given number of hash functions.
 
+        Args:
+            num_hashes (int): Number of hash functions to use for MinHash.
+        """
+        self.num_hashes = num_hashes
+        self.hash_functions = self._generate_hash_functions()
+
+    def _generate_hash_functions(self) -> List[Tuple[int, int]]:
+        """
+        Generate a list of random hash functions for MinHash.
+
+        Returns:
+            List of tuples (a, b) representing the random hash functions.
+        """
+        hash_functions = []
+        for _ in range(self.num_hashes):
+            a = random.randint(1, 2**32-1)  # Random coefficient a
+            b = random.randint(1, 2**32-1)  # Random coefficient b
+            hash_functions.append((a, b))
+        return hash_functions
+
+    def _hash(self, word: str, a: int, b: int) -> int:
+        """
+        Hash a word using the MinHash function (a * hash(word) + b) % large_prime_number.
+
+        Args:
+            word (str): The word to hash.
+            a (int): The random coefficient for the hash function.
+            b (int): The random coefficient for the hash function.
+
+        Returns:
+            int: The hashed value.
+        """
+        return (a * hash(word) + b) % (2**32-1)
+
+    def minhash_signature(self, words: Set[str]) -> List[int]:
+        """
+        Generate a MinHash signature for a set of words.
+
+        Args:
+            words (Set[str]): Set of words to hash.
+
+        Returns:
+            List[int]: The MinHash signature.
+        """
+        signature = []
+        for a, b in self.hash_functions:
+            min_hash = float('inf')  # Start with a very large number
+            for word in words:
+                hash_value = self._hash(word, a, b)
+                min_hash = min(min_hash, hash_value)
+            signature.append(min_hash)
+        return signature
+
+    def jaccard_similarity(self, set1: Set[str], set2: Set[str]) -> float:
+        """
+        Estimate Jaccard similarity between two sets using MinHash signatures.
+
+        Args:
+            set1 (Set[str]): First set of words.
+            set2 (Set[str]): Second set of words.
+
+        Returns:
+            float: The estimated Jaccard similarity between the two sets.
+        """
+        signature1 = self.minhash_signature(set1)
+        signature2 = self.minhash_signature(set2)
+        
+        # Count the number of matching hash values in the signatures
+        matches = sum([1 for i in range(self.num_hashes) if signature1[i] == signature2[i]])
+
+        # Estimate the Jaccard similarity as the proportion of matching hash values
+        return matches / self.num_hashes
+    
 class NGramGenerator:
     """Generate n-grams for blocking/candidate generation"""
     
