@@ -45,7 +45,7 @@ class PipelineConfig:
     accept_threshold: float = 0.60
     llm_band_low: float = 0.40
     llm_band_high: float = 0.65
-    max_llm_queries: int = 100
+    max_llm_queries: int = 850
 
     # Neo4j connection
     neo4j_uri: str = os.getenv("NEO4J_URI")
