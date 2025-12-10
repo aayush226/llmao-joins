@@ -28,7 +28,7 @@ class PipelineConfig:
     # Embedding-based candidate generation
     embed_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     embed_top_k: int = 20
-    embed_min_sim: float = 0.75
+    embed_min_sim: float = 0.6
 
     # Scoring weights (how we combine multiple similarity measures)
     w_rule: float = 0.6
@@ -42,9 +42,9 @@ class PipelineConfig:
     w_jaro_winkler: float = 0.0
     w_minhash: float = 0.0
     # Acceptance / LLM band
-    accept_threshold: float = 0.55
-    llm_band_low: float = 0.4
-    llm_band_high: float = 0.8
+    accept_threshold: float = 0.50
+    llm_band_low: float = 0.3
+    llm_band_high: float = 0.85
     max_llm_queries: int = 500
 
     # Neo4j connection
