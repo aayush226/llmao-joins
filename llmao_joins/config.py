@@ -35,7 +35,12 @@ class PipelineConfig:
     w_string: float = 0.2
     w_embed: float = 0.2
     w_llm: float = 0.7
-
+    w_low: float = 0.5
+    w_high: float = 0.8
+    w_ngram_jaccard: float = 0.0
+    w_levenshtein: float = 0.0
+    w_jaro_winkler: float = 0.0
+    w_minhash: float = 0.0
     # Acceptance / LLM band
     accept_threshold: float = 0.55
     llm_band_low: float = 0.4

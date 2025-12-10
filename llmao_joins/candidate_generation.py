@@ -20,6 +20,9 @@ class CandidatePair:
     string_sim: Optional[float] = None
     embed_sim: Optional[float] = None
     llm_score: Optional[float] = None
+    jaccard_sim: Optional[float] = None
+    levenshtein_sim: Optional[float] = None
+    ngram_sim: Optional[float] = None
     combined_score: Optional[float] = None
     features: Dict[str, float] = field(default_factory=dict)
     sources: List[str] = field(default_factory=list)
